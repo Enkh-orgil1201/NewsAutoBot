@@ -1,5 +1,7 @@
+import hashlib
 import json
 import os
+import re
 from config import POSTED_FILE
 
 
@@ -18,7 +20,14 @@ def save_posted(posted_ids: set) -> None:
         json.dump(sorted(posted_ids), f, ensure_ascii=False, indent=2)
 
 
-def mark_posted(article_id: str) -> None:
+def mark_posted(*ids: str) -> None:
     posted = load_posted()
-    posted.add(article_id)
+    for i in ids:
+        if i:
+            posted.add(i)
     save_posted(posted)
+
+
+def title_fingerprint(title: str) -> str:
+    norm = re.sub(r"[^a-z0-9]+", " ", title.lower()).strip()
+    return "title:" + hashlib.md5(norm.encode("utf-8")).hexdigest()[:16]

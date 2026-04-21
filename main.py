@@ -2,11 +2,25 @@ import sys
 import time
 import traceback
 
-from config import RSS_FEEDS, MAX_POSTS_PER_RUN
+from config import RSS_FEEDS, MAX_POSTS_PER_RUN, AI_KEYWORDS, FB_PAGE_ID
 from rss_fetcher import fetch_feed, fetch_article_text
 from translator import translate_article, format_fb_post
 from facebook_poster import post_to_page
-from storage import load_posted, mark_posted
+from storage import load_posted, mark_posted, title_fingerprint
+from telegram_notifier import send_notification
+
+
+def is_ai_related(title: str, summary: str) -> bool:
+    haystack = f"{title}\n{summary}".lower()
+    return any(kw in haystack for kw in AI_KEYWORDS)
+
+
+def fb_post_url(post_id: str) -> str:
+    # post_id format: "PAGE_ID_POST_ID" — extract the post part
+    if "_" in post_id:
+        _, pid = post_id.split("_", 1)
+        return f"https://www.facebook.com/{FB_PAGE_ID}/posts/{pid}"
+    return f"https://www.facebook.com/{post_id}"
 
 
 def run(dry_run: bool = False) -> None:
@@ -31,7 +45,15 @@ def run(dry_run: bool = False) -> None:
                 break
 
             article_id = item["id"]
+            title_id = title_fingerprint(item["title"])
+
             if not article_id or article_id in posted_ids:
+                continue
+            if title_id in posted_ids:
+                print(f"  -- skip dup title: {item['title'][:60]}")
+                continue
+
+            if not is_ai_related(item["title"], item["summary"]):
                 continue
 
             print(f"  -> {item['title'][:70]}")
@@ -56,14 +78,25 @@ def run(dry_run: bool = False) -> None:
             else:
                 try:
                     res = post_to_page(post_text, link=item["link"])
-                    print(f"     posted id={res.get('id')}")
+                    fb_id = res.get("id", "")
+                    print(f"     posted id={fb_id}")
                 except Exception as e:
                     print(f"     fb error: {e}")
                     continue
 
-            mark_posted(article_id)
+                mark_posted(article_id, title_id)
+                posted_ids.add(article_id)
+                posted_ids.add(title_id)
+
+                send_notification(
+                    title=translated["title"],
+                    fb_post_url=fb_post_url(fb_id),
+                    source_url=item["link"],
+                    source_name=feed["name"],
+                )
+
             published_count += 1
-            time.sleep(2)
+            time.sleep(8)  # Gemini free tier: ~10 RPM = 6s min
 
     print(f"\n[done] published: {published_count}")
 
