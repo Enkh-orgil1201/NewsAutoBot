@@ -6,7 +6,14 @@ from config import RSS_FEEDS, MAX_POSTS_PER_RUN, AI_KEYWORDS, FB_PAGE_ID
 from rss_fetcher import fetch_feed, fetch_article_text
 from translator import translate_article, format_fb_post
 from facebook_poster import post_to_page
-from storage import load_posted, mark_posted, title_fingerprint
+from storage import (
+    load_posted,
+    mark_posted,
+    title_fingerprint,
+    is_similar_to_posted,
+    load_posted_titles,
+    save_posted_title,
+)
 from telegram_notifier import send_notification
 
 
@@ -25,6 +32,7 @@ def fb_post_url(post_id: str) -> str:
 
 def run(dry_run: bool = False) -> None:
     posted_ids = load_posted()
+    posted_titles = load_posted_titles()
     published_count = 0
 
     print(f"[start] already posted: {len(posted_ids)} | limit: {MAX_POSTS_PER_RUN}")
@@ -51,6 +59,9 @@ def run(dry_run: bool = False) -> None:
                 continue
             if title_id in posted_ids:
                 print(f"  -- skip dup title: {item['title'][:60]}")
+                continue
+            if is_similar_to_posted(item["title"], posted_titles):
+                print(f"  -- skip similar: {item['title'][:60]}")
                 continue
 
             if not is_ai_related(item["title"], item["summary"]):
@@ -85,8 +96,10 @@ def run(dry_run: bool = False) -> None:
                     continue
 
                 mark_posted(article_id, title_id)
+                save_posted_title(item["title"])
                 posted_ids.add(article_id)
                 posted_ids.add(title_id)
+                posted_titles.append(item["title"])
 
                 send_notification(
                     title=translated["title"],
