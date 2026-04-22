@@ -1,0 +1,22 @@
+name: Debug FB Token
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify token & page
+        env:
+          FB_PAGE_ID: ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN: ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+        run: |
+          echo "=== /me (token owner) ==="
+          curl -s "https://graph.facebook.com/v21.0/me?fields=id,name,category,link&access_token=${FB_PAGE_ACCESS_TOKEN}" | python3 -m json.tool
+          echo ""
+          echo "=== /{FB_PAGE_ID} (configured page) ==="
+          curl -s "https://graph.facebook.com/v21.0/${FB_PAGE_ID}?fields=id,name,category,link,is_published,fan_count&access_token=${FB_PAGE_ACCESS_TOKEN}" | python3 -m json.tool
+          echo ""
+          echo "=== Recent feed posts ==="
+          curl -s "https://graph.facebook.com/v21.0/${FB_PAGE_ID}/feed?fields=id,message,created_time,permalink_url&limit=3&access_token=${FB_PAGE_ACCESS_TOKEN}" | python3 -m json.tool
