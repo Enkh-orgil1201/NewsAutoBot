@@ -83,7 +83,14 @@ def translate_article(title: str, body: str, source_name: str, source_url: str) 
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        return {"title": title, "body": text, "hashtags": []}
+        start = text.find("{")
+        end = text.rfind("}")
+        if start == -1 or end == -1 or end <= start:
+            raise RuntimeError(f"Gemini did not return JSON: {text[:200]}")
+        try:
+            data = json.loads(text[start : end + 1])
+        except json.JSONDecodeError as e:
+            raise RuntimeError(f"Gemini returned malformed JSON: {e}; text={text[:200]}")
 
     return {
         "title": data.get("title", title),

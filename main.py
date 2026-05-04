@@ -14,7 +14,7 @@ from storage import (
     load_posted_titles,
     save_posted_title,
 )
-from telegram_notifier import send_notification
+from telegram_notifier import send_notification, send_error
 
 
 def is_ai_related(title: str, summary: str) -> bool:
@@ -81,6 +81,13 @@ def run(dry_run: bool = False) -> None:
                 post_text = format_fb_post(translated, feed["name"], item["link"])
             except Exception as e:
                 print(f"     translate error: {e}")
+                send_error(
+                    stage="Gemini орчуулга",
+                    title=item["title"],
+                    source_name=feed["name"],
+                    source_url=item["link"],
+                    error=str(e),
+                )
                 continue
 
             if dry_run:
@@ -93,6 +100,13 @@ def run(dry_run: bool = False) -> None:
                     print(f"     posted id={fb_id}")
                 except Exception as e:
                     print(f"     fb error: {e}")
+                    send_error(
+                        stage="Facebook нийтлэл",
+                        title=translated.get("title", item["title"]),
+                        source_name=feed["name"],
+                        source_url=item["link"],
+                        error=str(e),
+                    )
                     continue
 
                 mark_posted(article_id, title_id)
